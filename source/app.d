@@ -76,7 +76,7 @@ void main( string[] args)
 		  writefln( "%d: %s", tnum, tfname);
 	    string answer;
 	    int i;
-	    while( ! matchFirst( answer, `^\d+$` ) || i<1 || i>templates.length ){
+	    while( ! matchFirst( answer, `^\d+$` ) || i<0 || i>templates.length ){
 		  writeln("Select template: (type number and press Enter)");
 		  answer = readln.strip;
 		  i = answer.to!int - 1;
