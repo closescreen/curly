@@ -1,0 +1,24 @@
+/+
+dub.json:
+{
+	"name": "%prgname%",
+	"authors": [
+		""
+	],
+	"dependencies": {
+	},
+	"description": "",
+	"copyright": "",
+	"license": ""
+
+}
++/
+module %prgname%;
+import std.stdio, std.getopt, std.string, std.regex,
+	std.algorithm, std.array, std.conv, std.range, std.functional,
+	std.file, std.path, std.process;
+
+void main( string[] args )
+{
+  writefln("Ok");
+}

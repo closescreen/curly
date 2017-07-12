@@ -44,6 +44,22 @@ void main( string[] args)
 	  // имя файла шаблона, с которым работаем
 	  string template_file_name;
 	  if ( templates.empty ){
+	    // ищем шаблоны из коробки
+	    auto inbox_templates = dirEntries( args[0].dirName, SpanMode.breadth ).
+	      filter!( f=>matchFirst( f.to!string , `.+\.tt`)).map!"a.to!string".array;
+
+	    // копируем шаблоны в settings_dir
+	    foreach( t; inbox_templates ){
+	      copy( t, buildPath( settings_dir, t.baseName ));
+	    }
+	    
+	    // снова ищем шаблоны в settings_dir
+	    templates = dirEntries( settings_dir, SpanMode.shallow ).
+		  filter!( f=>matchFirst( f.to!string , `.+\.%s\.tt`.format(file_ex))).map!"a.to!string".array;
+	  }  
+	  
+	  // теперь есть подходящий шаблон?
+	  if ( templates.empty ){    
 	    // записываем шаблон template_file_name в settings_dir
 	    template_file_name = buildPath( settings_dir, "sample.%s.tt".format(file_ex) );
 	    std.file.write( template_file_name, template_text( file_ex, "" ) );
