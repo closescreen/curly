@@ -4,46 +4,9 @@ import core.stdc.stdlib;
 void main( string[] args)
 {
     // имя файла создаваемой программы
-	string file;
-	if ( args.length > 1 )
-	  file = args[1];
-	else  
-	  file = ""; 
-    // имя программы
-    auto prgname = file.baseName.replace( regex(`\..+$`), "" );
+	auto file = args.length > 1 ? args[1] : "";
 
-	// найти шаблон
-	string[] templates = dirEntries( args[0].dirName, SpanMode.breadth ).
-	  filter!( f=>matchFirst( f.to!string , `.+\.tt`)).map!"a.to!string".array;
-	  
-	
-	if ( templates.empty ){
-	  auto home = environment.get("HOME","");
-	  if ( !home.empty )
-		templates = dirEntries( home, SpanMode.shallow ).
-		  filter!( f=>matchFirst( f.to!string , `.+\.tt`)).map!"a.to!string".array;
-	}
-	
-	string template_name;
-	if (templates.empty){
-	  template_name = args[0].dirName ~ "/d.tt";
-	  std.file.write( template_name, template_single( prgname ) );
-	}else  if (templates.length==1){
-	  template_name = templates.front; 
-	}else{
-	  foreach ( tnum,tname; templates.enumerate(1) )
-		writefln( "%d: %s", tnum, tname);
-	  string answer;
-	  int i;
-	  while( ! matchFirst( answer, `^\d+$` ) || i<1 || i>templates.length ){
-		writeln("Select template: (type number and press Enter)");
-		answer = readln.strip;
-		i = answer.to!int - 1;
-	  }
-	  template_name = templates[ i ];
-	}
-
-    // Если имя файла не указано
+    // Если имя файла программы *.d не указано
     if ( file.empty ){
   	  stderr.writefln( "Usage: %s <file.d>" , args[0].baseName ); 
   	  // installing
@@ -53,46 +16,109 @@ void main( string[] args)
 		stderr.writeln("(If not already have, set env var EDITOR)");
 		exit(1);
 	}
-  
-	if ( !file.exists ) copy( template_name, file );
+
+	// расширение файла
+	string file_ex;
+	if ( auto m = matchFirst( file, `\.(.+)$` ))
+          file_ex = m[1];	
+
+    // имя программы
+    auto prgname = file.baseName.replace( regex(`\..+$`), "" );
+
+	// найти/создать setting dir
+	auto home = environment.get("HOME","");
+	auto settings_dir = home.empty ? "" : buildPath( home, ".curly");
+	if ( !settings_dir.exists ){
+	  settings_dir.mkdir;
+	  stderr.writefln("%s was created.", settings_dir);
+	}
+
+	if ( !file.exists ){
+
 	
-	// открыть файл в редакторе EDITOR
-	auto editor = environment.get("EDITOR" , "");
+	  // найти/создать шаблон[ы]
+	  string[] templates;
+	  if ( settings_dir )
+	    templates = dirEntries( settings_dir, SpanMode.shallow ).
+		  filter!( f=>matchFirst( f.to!string , `.+\.%s\.tt`.format(file_ex))).map!"a.to!string".array;
+	
+	  // имя файла шаблона, с которым работаем
+	  string template_file_name;
+	  if ( templates.empty ){
+	    // записываем шаблон template_file_name в settings_dir
+	    template_file_name = buildPath( settings_dir, "sample.%s.tt".format(file_ex) );
+	    std.file.write( template_file_name, template_text( file_ex, "" ) );
+	    stderr.writefln( "Template %s created. You may edit it.", template_file_name);
+	  }else  if (templates.length==1){
+	    template_file_name = templates.front;
+	  }else{
+	    // если шаблонов несколько просим пользователя выбрать шаблон
+	    foreach ( tnum,tfname; templates.enumerate(1) )
+		  writefln( "%d: %s", tnum, tfname);
+	    string answer;
+	    int i;
+	    while( ! matchFirst( answer, `^\d+$` ) || i<1 || i>templates.length ){
+		  writeln("Select template: (type number and press Enter)");
+		  answer = readln.strip;
+		  i = answer.to!int - 1;
+	    }
+	    template_file_name = templates[ i ];
+	  }
+
+	  auto prgText = template_file_name.readText.replaceAll( regex( r"\%prgname\%" ), prgname );
+	  std.file.write( file, prgText );
+	
+	} // - end of if !file.exists
+	
+	// какой editor
+	auto editor = environment.get("CURLY_EDITOR" , "");
 	if (editor.empty){
-	  stderr.writeln("Set env var EDITOR. f.e.: 'export EDITOR=mcedit'");
+	  stderr.writeln("Set environment variable CURLY_EDITOR, please. f.e.: 'export CURLY_EDITOR=mcedit'");
 	  exit(1);
 	}
-	  
+	
+	// открыть файл в редакторе EDITOR  
 	auto editCmd = "%s %s".format( editor, file);
 	//stderr.writeln( editCmd);
 	auto edPid = spawnShell( editCmd );
-	edPid.wait;
-	//ed.output.write;
-	//if (ed.status != 0) writeln("Error while call editor. Set EDITOR env variable.");
-
+	if ( edPid.wait != 0 )
+	  stderr.writefln("Was error while call editor command: %s.", editor );
+	
 	bool isDubSingle;
-	isDubSingle = !matchFirst( file.readText, regex(`^\s*dub.json:\s*\n`, "m")).empty;
+	isDubSingle = !matchFirst( file.readText, regex(`^\s*(dub\.json|dub\.sdl):\s*\n`, "m")).empty;
 	
 	string cmd;
 	if (isDubSingle)
-  	  cmd = `dub build --single ` ~ file;
+  	  cmd = `set -v; dub build --single ` ~ file;
+  	else if ( file_ex == "d" )
+  	  cmd = "set -v; dmd " ~ file;
   	else
-  	  cmd = "dmd " ~ file;
+  	  cmd = "";
   	  
-  	stderr.writeln( "Run " ~ cmd ~ " ... ");
-    auto buildPid = spawnShell( cmd );
-	buildPid.wait;	
-		
+  	if (cmd){
+      auto buildPid = spawnShell( cmd );
+	  buildPid.wait;	
+	}	
 }
 
-string template_single( string prgname ){
-return `/+
+string template_text( string ext, lazy string otherwise ){
+if ( ext=="d" ) return 
+`/+
 dub.json:
 {
-  "name": "` ~ prgname ~`"
+	"name": "%prgname%",
+	"authors": [
+		""
+	],
+	"dependencies": {
+	},
+	"description": "",
+	"copyright": "",
+	"license": ""
+
 }
 +/
-module ` ~ prgname ~`;
+module %prgname%;
 import std.stdio, std.getopt, std.string, std.regex,
 	std.algorithm, std.array, std.conv, std.range, std.functional,
 	std.file, std.path, std.process,
@@ -107,9 +133,14 @@ import std.stdio, std.getopt, std.string, std.regex,
     std.stdint, std.windows.syserror, 
     std.typetuple,  std.variant ;
 
-void main()
+void main( string[] args )
 {
   writefln("Ok");
 }
 `;
+
+else return otherwise;
 }
+
+
+
