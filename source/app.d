@@ -13,7 +13,6 @@ void main( string[] args)
 	  auto pathToMe = executeShell( "which " ~ args[0].baseName );
 	  if ( pathToMe.output.empty )
 		stderr.writeln("Please add me to PATH:\nexport PATH=$PATH:" , args[0].dirName );
-		stderr.writeln("(If not already have, set env var EDITOR)");
 		exit(1);
 	}
 
@@ -72,8 +71,14 @@ void main( string[] args)
 	
 	// какой editor
 	auto editor = environment.get("CURLY_EDITOR" , "");
+	if ( editor==args[0].baseName ){
+	  stderr.writefln("Not allowed %s as CURLY_EDITOR", editor);
+	  exit(1);
+	}else if( editor.empty ){  
+	  editor = environment.get("EDITOR" , "");
+	}  
 	if (editor.empty){
-	  stderr.writeln("Set environment variable CURLY_EDITOR, please. f.e.: 'export CURLY_EDITOR=mcedit'");
+	  stderr.writeln("Set environment variable CURLY_EDITOR or EDITOR, please. f.e.: 'export CURLY_EDITOR=mcedit'");
 	  exit(1);
 	}
 	
