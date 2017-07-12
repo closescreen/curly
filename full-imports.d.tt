@@ -1,0 +1,34 @@
+/+
+dub.json:
+{
+	"name": "%prgname%",
+	"authors": [
+		""
+	],
+	"dependencies": {
+	},
+	"description": "",
+	"copyright": "",
+	"license": ""
+
+}
++/
+module %prgname%;
+import std.stdio, std.getopt, std.string, std.regex,
+	std.algorithm, std.array, std.conv, std.range, std.functional,
+	std.file, std.path, std.process,
+	std.format, std.csv, std.xml, std.zip, std.zlib, std.json,
+	std.uri, std.uni,  std.utf,	std.ascii, std.base64,
+    std.system, std.traits, std.typecons,
+    std.datetime, std.demangle, std.digest.md, std.encoding, std.exception,
+    std.bigint, std.bitmanip, std.compiler, std.complex, std.concurrency, std.container, 
+    std.math, std.mathspecial, std.mmfile,
+    std.numeric, std.outbuffer, std.parallelism, 
+    std.random,  std.signals, std.socket,
+    std.stdint, std.windows.syserror, 
+    std.typetuple,  std.variant ;
+
+void main( string[] args )
+{
+  writefln("Ok");
+}

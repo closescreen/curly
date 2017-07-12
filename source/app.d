@@ -41,22 +41,26 @@ void main( string[] args)
 	    templates = dirEntries( settings_dir, SpanMode.shallow ).
 		  filter!( f=>matchFirst( f.to!string , `.+\.%s\.tt`.format(file_ex))).map!"a.to!string".array;
 	
-	  // имя файла шаблона, с которым работаем
-	  string template_file_name;
 	  if ( templates.empty ){
 	    // ищем шаблоны из коробки
-	    auto inbox_templates = dirEntries( args[0].dirName, SpanMode.breadth ).
+
+	    auto inbox_templates = dirEntries( thisExePath().dirName, SpanMode.shallow ).
 	      filter!( f=>matchFirst( f.to!string , `.+\.tt`)).map!"a.to!string".array;
 
 	    // копируем шаблоны в settings_dir
 	    foreach( t; inbox_templates ){
-	      copy( t, buildPath( settings_dir, t.baseName ));
+	      auto to = buildPath( settings_dir, t.baseName );
+	      copy( t, to);
+	      stderr.writefln("%s copyed to %s for you.", t, to);
 	    }
 	    
 	    // снова ищем шаблоны в settings_dir
 	    templates = dirEntries( settings_dir, SpanMode.shallow ).
 		  filter!( f=>matchFirst( f.to!string , `.+\.%s\.tt`.format(file_ex))).map!"a.to!string".array;
 	  }  
+
+	  // имя файла шаблона, с которым работаем
+	  string template_file_name;
 	  
 	  // теперь есть подходящий шаблон?
 	  if ( templates.empty ){    
