@@ -1,3 +1,4 @@
+import std.stdio, std.string, std.regex;
 import std.getopt;
 
 string day = "";
