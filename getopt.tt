@@ -1,0 +1,18 @@
+import std.getopt;
+
+string day = "";
+int deb = 0;
+
+void main( string[] args )
+{
+  auto opts = getopt(
+    args,
+    std.getopt.config.caseInsensitive,
+    "deb|d", "debug level 0|1|2", &deb,
+    std.getopt.config.caseSensitive,
+    "day", "day in yyyy-mm-dd format",   &day,
+  );
+
+  if ( opts.helpWanted)  defaultGetoptPrinter( "Usage: ___ ",  opts.options );
+  
+}
