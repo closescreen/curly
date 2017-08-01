@@ -1,4 +1,4 @@
-import std.stdio, std.path, std.algorithm, std.file, std.regex, std.string, std.conv, std.functional, std.range, std.process;
+import std.stdio, std.path, std.algorithm, std.file, std.regex, std.string, std.array, std.conv, std.functional, std.range, std.process;
 import core.stdc.stdlib;
 
 void main( string[] args)
@@ -96,9 +96,12 @@ void main( string[] args)
 	  exit(1);
 	}else if( editor.empty ){  
 	  editor = environment.get("EDITOR" , "");
-	}  
+	} 
 	if (editor.empty){
-	  stderr.writeln("Set environment variable CURLY_EDITOR or EDITOR, please. f.e.: 'export CURLY_EDITOR=mcedit'");
+	  editor = choiceEditor();
+	} 
+	if (editor.empty){
+	  stderr.writeln("TIP: Set environment variable CURLY_EDITOR or EDITOR. f.e.: 'export CURLY_EDITOR=mcedit'");
 	  exit(1);
 	}
 	
@@ -167,5 +170,22 @@ void main( string[] args )
 else return otherwise;
 }
 
+auto available_editors(){
+ auto editors = ["atom","sublimetext","nano","gedit","textadept","emacs","vim","vi"]; 
+ return editors.filter!( editor => "which %s".format( editor ).executeShell.output.not!empty);
+}
 
-
+string choiceEditor(string msg = ""){
+ auto answer = "";
+ auto i = 0;
+ auto ee = available_editors.array;
+ while ( !matchFirst( answer, `\d+`) || i<0 || i>=ee.length ){
+  stderr.writefln("Choise editor (type number and Enter):\n");
+  foreach ( number, editor; ee.enumerate(1) ){
+    writefln("%d: %s", number, editor);
+  }
+  answer = readln.strip;
+  i = answer.to!int - 1;
+ }
+ return ee[i];  
+}
