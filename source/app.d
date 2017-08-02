@@ -90,9 +90,9 @@ void main( string[] args)
 	} 
 	if (editor.empty){
 	  editor = userChoice("Choice editor", available_editors.array );
+	  stderr.writeln("TIP: Set environment variable CURLY_EDITOR or EDITOR. f.e.: 'export CURLY_EDITOR=mcedit'");
 	} 
 	if (editor.empty){
-	  stderr.writeln("TIP: Set environment variable CURLY_EDITOR or EDITOR. f.e.: 'export CURLY_EDITOR=mcedit'");
 	  exit(1);
 	}
 	
@@ -103,16 +103,24 @@ void main( string[] args)
 	if ( edPid.wait != 0 )
 	  stderr.writefln("Was error while call editor command: %s.", editor );
 	
+	string fileContent = file.readText;
+	string fullFilePath = executeShell( escapeShellCommand( "readlink -f " ~ file )).output;
 	bool isDubSingle;
-	isDubSingle = !matchFirst( file.readText, regex(`^\s*(dub\.json|dub\.sdl):\s*\n`, "m")).empty;
+	isDubSingle = !matchFirst( fileContent, regex(`^\s*(dub\.json|dub\.sdl):\s*\n`, "m")).empty;
+	
 	
 	string cmd;
+	string[] cmd_opts;
 	if (isDubSingle)
   	  cmd = `set -v; dub build --single ` ~ file;
-  	else if ( file_ex == "d" )
-  	  cmd = "set -v; dmd " ~ file;
-  	else
-  	  cmd = "";
+  	else if ( file_ex == "d" ){
+  	  cmd = userChoice("Select command:", [
+  		"dmd -unittest " ~ file,
+  		"dmd -main -unittest " ~ file,
+  		"dmd -main -unittest -run " ~ file,
+  		"dmd " ~ file,
+  	  ]);
+  	}  
   	  
   	if (cmd){
       auto buildPid = spawnShell( cmd );
