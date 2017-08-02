@@ -72,16 +72,7 @@ void main( string[] args)
 	    template_file_name = templates.front;
 	  }else{
 	    // если шаблонов несколько просим пользователя выбрать шаблон
-	    foreach ( tnum,tfname; templates.enumerate(1) )
-		  writefln( "%d: %s", tnum, tfname);
-	    string answer;
-	    int i;
-	    while( ! matchFirst( answer, `^\d+$` ) || i<0 || i>templates.length ){
-		  writeln("Select template: (type number and press Enter)");
-		  answer = readln.strip;
-		  i = answer.to!int - 1;
-	    }
-	    template_file_name = templates[ i ];
+	    template_file_name = userChoice("Select template", templates);
 	  }
 
 	  auto prgText = template_file_name.readText.replaceAll( regex( r"\%prgname\%" ), prgname );
@@ -98,7 +89,7 @@ void main( string[] args)
 	  editor = environment.get("EDITOR" , "");
 	} 
 	if (editor.empty){
-	  editor = choiceEditor();
+	  editor = userChoice("Choice editor", available_editors.array );
 	} 
 	if (editor.empty){
 	  stderr.writeln("TIP: Set environment variable CURLY_EDITOR or EDITOR. f.e.: 'export CURLY_EDITOR=mcedit'");
@@ -171,21 +162,21 @@ else return otherwise;
 }
 
 auto available_editors(){
- auto editors = ["atom","sublimetext","nano","gedit","textadept","emacs","vim","vi"]; 
+ auto editors = ["mcedit","emacs","vim","vi", "atom","sublimetext","nano","gedit","textadept"];
  return editors.filter!( editor => "which %s".format( editor ).executeShell.output.not!empty);
 }
 
-string choiceEditor(string msg = ""){
+string userChoice ( string prompt, string[] list)
+{
  auto answer = "";
  auto i = 0;
- auto ee = available_editors.array;
- while ( !matchFirst( answer, `\d+`) || i<0 || i>=ee.length ){
-  stderr.writefln("Choise editor (type number and Enter):\n");
-  foreach ( number, editor; ee.enumerate(1) ){
-    writefln("%d: %s", number, editor);
+ while ( !matchFirst( answer, `\d+`) || i<0 || i>=list.length ){
+  stderr.writefln( "%s (type number and Enter):\n", prompt );
+  foreach ( number, elem; list.enumerate(1) ){
+    writefln("%d: %s", number, elem);
   }
   answer = readln.strip;
   i = answer.to!int - 1;
  }
- return ee[i];  
+ return list[i];  
 }
