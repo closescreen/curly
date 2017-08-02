@@ -1,0 +1,13 @@
+
+module %prgname%;
+
+import std.stdio, std.string;
+
+
+///
+
+
+///
+unittest{
+  assert( true );
+}
