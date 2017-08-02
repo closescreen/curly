@@ -89,7 +89,12 @@ void main( string[] args)
 	  editor = environment.get("EDITOR" , "");
 	} 
 	if (editor.empty){
-	  editor = userChoice("Choice editor", available_editors.array );
+	  auto editors_file = buildPath( settings_dir, ".editors.conf");
+	  editor = userChoice("Choice editor", available_editors.array ~ listFromFile( editors_file) );
+	  
+	  if ( !empty(editor) && !canFind( listFromFile( editors_file), editor ) ){
+		addItemToListInFile( editors_file, editor, available_editors.array, true);
+	  }
 	  stderr.writeln("TIP: Set environment variable CURLY_EDITOR or EDITOR. f.e.: 'export CURLY_EDITOR=mcedit'");
 	} 
 	if (editor.empty){
@@ -105,22 +110,29 @@ void main( string[] args)
 	
 	string fileContent = file.readText;
 	string fullFilePath = executeShell( escapeShellCommand( "readlink -f " ~ file )).output;
-	bool isDubSingle;
-	isDubSingle = !matchFirst( fileContent, regex(`^\s*(dub\.json|dub\.sdl):\s*\n`, "m")).empty;
+//	bool isDubSingle;
+//	isDubSingle = !matchFirst( fileContent, regex(`^\s*(dub\.json|dub\.sdl):\s*\n`, "m")).empty;
 	
 	
 	string cmd;
-	string[] cmd_opts;
-	if (isDubSingle)
-  	  cmd = `set -v; dub build --single ` ~ file;
-  	else if ( file_ex == "d" ){
-  	  cmd = userChoice("Select command:", [
+	
+	
+  	  auto post_edit_commands_file = buildPath( settings_dir, ".post_edit_commands.%s.conf".format(file_ex));
+  	  auto commands = [
   		"dmd -unittest " ~ file,
   		"dmd -main -unittest " ~ file,
   		"dmd -main -unittest -run " ~ file,
   		"dmd " ~ file,
-  	  ]);
-  	}  
+  		"dub build --root=..",
+  		"dub build",
+  		"dub build --single"
+  	  ];
+  	  cmd = userChoice("Select command:", commands);
+  	
+	  if ( !empty( cmd) && !canFind( listFromFile( post_edit_commands_file), cmd ) ){
+		addItemToListInFile( post_edit_commands_file, cmd, commands);
+	  }
+  	
   	  
   	if (cmd){
       auto buildPid = spawnShell( cmd );
@@ -177,14 +189,45 @@ auto available_editors(){
 string userChoice ( string prompt, string[] list)
 {
  auto answer = "";
- auto i = 0;
- while ( !matchFirst( answer, `\d+`) || i<0 || i>=list.length ){
-  stderr.writefln( "%s (type number and Enter):\n", prompt );
+ int i = 0;
+ while ( answer.empty ){
+  stderr.writefln( "%s (type number /or text for custom/ and Enter):\n", prompt );
   foreach ( number, elem; list.enumerate(1) ){
     writefln("%d: %s", number, elem);
   }
   answer = readln.strip;
-  i = answer.to!int - 1;
+  if ( matchFirst( answer, regex(`^\d+$`))){
+	// user enters number
+	i = answer.to!int - 1;
+  }else{
+	i = -1;
+  }	
  }
- return list[i];  
+ if (i>=0){
+  // number
+  return list[i];
+ }else{
+  //custom
+  return answer;
+ }
 }
+
+void addItemToListInFile(string file, string item, string[] except, bool verbose=true ){
+  exists(file) || append(file,""); // create file if need
+  auto list = listFromFile(file);
+  item = item.strip;
+  if ( except.canFind( item)){
+	return;
+  }
+  if ( !list.canFind( item )){
+	append( file, item);
+	stderr.writefln("%s was added to %s", item, file);
+  }	
+}
+
+string[] listFromFile( string file ){
+ string[] rv;
+ if ( !exists(file) ) return rv;
+ return File(file).byLineCopy.map!strip.array;
+}
+
