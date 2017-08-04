@@ -1,8 +1,22 @@
 import std.stdio, std.path, std.algorithm, std.file, std.regex, std.string, std.array, std.conv, std.functional, std.range, std.process;
-import core.stdc.stdlib, std.exception;
+import core.stdc.stdlib, std.exception, std.getopt;
 
 void main( string[] args)
 {
+
+  bool recursively = false; 
+  auto opts = getopt(
+    args,
+    std.getopt.config.caseSensitive,
+    "r", "recursively edit", &recursively,
+//    std.getopt.config.caseInsensitive,
+//    "deb|d", "debug level 0|1|2", &deb,
+//    "day", "day in yyyy-mm-dd format",   &day,
+  );
+
+  if ( opts.helpWanted)  defaultGetoptPrinter( "Usage: ",  opts.options );
+
+
     // имя файла создаваемой программы
 	auto file = args.length > 1 ? args[1] : "";
 
@@ -81,30 +95,36 @@ void main( string[] args)
 	  std.file.write( file, prgText );
 	
 	} // - end of if !file.exists
-	
-	// открыть файл в редакторе EDITOR  
-	auto editCmd = "%s %s".format( editor, file);
-	//stderr.writeln( editCmd);
-	auto edPid = spawnShell( editCmd );
-	if ( edPid.wait != 0 )
-	  stderr.writefln("Was error while call editor command: %s.", editor );
-	
-	string fileContent = file.readText;
-	string fullFilePath = executeShell( "readlink -f " ~ file ).output;
-	auto replacedCmd = "";
-	if ( auto afterEditCmd = fileContent.matchFirst( `after-edit:\s*(.+)`.regex ) ){
-	  if ( auto cmd = afterEditCmd[1] ){
-		// after edit:
-		replacedCmd = cmd.to!string.replaceFirst( `%f`.regex, fullFilePath );
-	  }
-	}else{
-	  auto userCmd = userChoice( "Command for compile/check your file %s".format(fullFilePath), [] );
-	  if ( userCmd ) replacedCmd = userCmd.replaceFirst( fullFilePath.regex, "%f" );
-	  if (replacedCmd) fullFilePath.append( "\n" ~ replacedCmd ~ "\n" );
-	}
-	
-	if (replacedCmd) spawnShell("set -x; " ~ replacedCmd ).wait;	
 
+	auto editCmd = "%s %s".format( editor, file);
+
+	while( true ){	
+
+	  auto edPid = spawnShell( editCmd );
+	  if ( edPid.wait != 0 )
+		stderr.writefln("Was error while call editor command: %s.", editor );
+	
+	  string fileContent = file.readText;
+	  string fullFilePath = executeShell( "readlink -f " ~ file ).output;
+	  auto replacedCmd = "";
+	  if ( auto afterEditCmd = fileContent.matchFirst( `after-edit:\s*(.+)`.regex ) ){
+		if ( auto cmd = afterEditCmd[1] ){
+		  // after edit:
+		  replacedCmd = cmd.to!string.replaceFirst( `%f`.regex, fullFilePath );
+		}
+	  }else{
+		auto userCmd = userChoice( "Command for compile/check your file %s".format(fullFilePath), [] );
+		if ( userCmd ) replacedCmd = userCmd.replaceFirst( fullFilePath.regex, "%f" );
+		if (replacedCmd) fullFilePath.append( "\n" ~ replacedCmd ~ "\n" );
+	  }
+	
+	  if (replacedCmd) spawnShell("set -x; " ~ replacedCmd ).wait;	
+	  
+	  if (!recursively) break;
+	  writeln("Continue editing? [y]/n/Ctrl+c");
+	  auto ans2 = readln.strip;
+	  ans2 != "" && ans2!="y" && ans2!="Y" && exit(0); 
+	}
 }
 
 auto available_editors(){
@@ -141,4 +161,8 @@ string userChoice ( string prompt, string[] list)
 }
 
 
-
+  
+  
+  
+  
+  
