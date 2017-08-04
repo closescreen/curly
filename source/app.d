@@ -37,46 +37,27 @@ void main( string[] args)
 
 	
 	  // найти/создать шаблон[ы]
-	  string[] templates;
-	  if ( settings_dir )
-	    templates = dirEntries( settings_dir, SpanMode.shallow ).
-		  filter!( f=>matchFirst( f.to!string , `.+\.%s\.tt`.format(file_ex))).map!"a.to!string".array;
-	
-	  if ( templates.empty ){
-	    // ищем шаблоны из коробки
-
-	    auto inbox_templates = dirEntries( thisExePath().dirName, SpanMode.shallow ).
+	  string[] templates = dirEntries( thisExePath().dirName, SpanMode.shallow ).
 	      filter!( f=>matchFirst( f.to!string , `.+\.tt`)).map!"a.to!string".array;
-
-	    // копируем шаблоны в settings_dir
-	    foreach( t; inbox_templates ){
-	      auto to = buildPath( settings_dir, t.baseName );
-	      copy( t, to);
-	      stderr.writefln("%s copyed to %s for you.", t, to);
-	    }
-	    
-	    // снова ищем шаблоны в settings_dir
-	    templates = dirEntries( settings_dir, SpanMode.shallow ).
-		  filter!( f=>matchFirst( f.to!string , `.+\.%s\.tt`.format(file_ex))).map!"a.to!string".array;
-	  }  
 
 	  // имя файла шаблона, с которым работаем
 	  string template_file_name;
 	  
-	  // теперь есть подходящий шаблон?
-	  if ( templates.empty ){    
-	    // записываем шаблон template_file_name в settings_dir
-	    template_file_name = buildPath( settings_dir, "sample.%s.tt".format(file_ex) );
-	    std.file.write( template_file_name, template_text( file_ex, "" ) );
-	    stderr.writefln( "Template %s created. You may edit it.", template_file_name);
+	  auto empty_name="Empty file";
+
+	  if ( templates.empty ){
+		template_file_name = empty_name;
 	  }else  if (templates.length==1){
 	    template_file_name = templates.front;
 	  }else{
 	    // если шаблонов несколько просим пользователя выбрать шаблон
-	    template_file_name = userChoice("Select template", templates);
+	    template_file_name = userChoice("Select template", templates ~ empty_name );
 	  }
 
-	  auto prgText = template_file_name.readText.replaceAll( regex( r"\%prgname\%" ), prgname );
+	  auto prgText = template_file_name.exists ? 
+		  template_file_name.readText.replaceAll( regex( r"\%prgname\%" ), prgname ) : 
+		  "";
+
 	  std.file.write( file, prgText );
 	
 	} // - end of if !file.exists
@@ -139,47 +120,6 @@ void main( string[] args)
       auto buildPid = spawnShell( cmd );
 	  buildPid.wait;	
 	}	
-}
-
-string template_text( string ext, lazy string otherwise ){
-if ( ext=="d" ) return 
-`/+
-dub.json:
-{
-	"name": "%prgname%",
-	"authors": [
-		""
-	],
-	"dependencies": {
-	},
-	"description": "",
-	"copyright": "",
-	"license": ""
-
-}
-+/
-module %prgname%;
-import std.stdio, std.getopt, std.string, std.regex,
-	std.algorithm, std.array, std.conv, std.range, std.functional,
-	std.file, std.path, std.process,
-	std.format, std.csv, std.xml, std.zip, std.zlib, std.json,
-	std.uri, std.uni,  std.utf,	std.ascii, std.base64,
-    std.system, std.traits, std.typecons,
-    std.datetime, std.demangle, std.digest.md, std.encoding, std.exception,
-    std.bigint, std.bitmanip, std.compiler, std.complex, std.concurrency, std.container, 
-    std.math, std.mathspecial, std.mmfile,
-    std.numeric, std.outbuffer, std.parallelism, 
-    std.random,  std.signals, std.socket,
-    std.stdint, std.windows.syserror, 
-    std.typetuple,  std.variant ;
-
-void main( string[] args )
-{
-  writefln("Ok");
-}
-`;
-
-else return otherwise;
 }
 
 auto available_editors(){
