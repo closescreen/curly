@@ -25,18 +25,36 @@ void main( string[] args)
     // имя программы
     auto prgname = file.baseName.replace( regex(`\..+$`), "" );
 
-	// найти/создать setting dir
-	auto home = environment.get("HOME","");
-	auto settings_dir = home.empty ? "" : buildPath( home, ".curly");
-	if ( !settings_dir.exists ){
-	  settings_dir.mkdir;
-	  stderr.writefln("%s was created.", settings_dir);
+	// какой editor
+	auto editor = environment.get("CURLY_EDITOR" , "").strip;
+	if ( editor==args[0].baseName ){
+	  stderr.writefln("Not allowed %s as CURLY_EDITOR", editor);
+	  exit(1);
+	}else if( editor.empty ){  
+	  editor = environment.get("EDITOR" , "").strip;
 	}
+	
+	stderr.writefln("editor: %s", editor);
+	if ( editor.empty && file.exists ){
+	  stderr.writeln("find in file");
+	  if ( auto editor_from_file = file.readText.matchFirst( `CURLY_EDITOR:\s*(.+)`.regex ) ){
+		stderr.writeln("from file:",editor_from_file);
+		editor = editor_from_file[1]; 
+	  }
+	} 
 
+	if ( editor.empty ){
+	  editor = userChoice("Choice editor", available_editors.array );
+	  stderr.writeln("TIP: Set environment variable CURLY_EDITOR or EDITOR. f.e.: 'export CURLY_EDITOR=mcedit'");
+	} 
+
+	if (editor.empty){
+	  exit(1);
+	}
+	
 	if ( !file.exists ){
 
-	
-	  // найти/создать шаблон[ы]
+	  // найти шаблоны
 	  string[] templates = dirEntries( thisExePath().dirName, SpanMode.shallow ).
 	      filter!( f=>matchFirst( f.to!string , `.+\.tt`)).map!"a.to!string".array;
 
@@ -58,30 +76,11 @@ void main( string[] args)
 		  template_file_name.readText.replaceAll( regex( r"\%prgname\%" ), prgname ) : 
 		  "";
 
+	  if (editor) prgText = prgText ~ ("\n// CURLY_EDITOR: %s".format( editor));
+
 	  std.file.write( file, prgText );
 	
 	} // - end of if !file.exists
-	
-	// какой editor
-	auto editor = environment.get("CURLY_EDITOR" , "");
-	if ( editor==args[0].baseName ){
-	  stderr.writefln("Not allowed %s as CURLY_EDITOR", editor);
-	  exit(1);
-	}else if( editor.empty ){  
-	  editor = environment.get("EDITOR" , "");
-	} 
-	if (editor.empty){
-	  auto editors_file = buildPath( settings_dir, ".editors.conf");
-	  editor = userChoice("Choice editor", available_editors.array ~ listFromFile( editors_file) );
-	  
-	  if ( !empty(editor) && !canFind( listFromFile( editors_file), editor ) ){
-		addItemToListInFile( editors_file, editor, available_editors.array, true);
-	  }
-	  stderr.writeln("TIP: Set environment variable CURLY_EDITOR or EDITOR. f.e.: 'export CURLY_EDITOR=mcedit'");
-	} 
-	if (editor.empty){
-	  exit(1);
-	}
 	
 	// открыть файл в редакторе EDITOR  
 	auto editCmd = "%s %s".format( editor, file);
@@ -91,8 +90,21 @@ void main( string[] args)
 	  stderr.writefln("Was error while call editor command: %s.", editor );
 	
 	string fileContent = file.readText;
-	string fullFilePath = executeShell( escapeShellCommand( "readlink -f " ~ file )).output;
+	string fullFilePath = executeShell( "readlink -f " ~ file ).output;
+	auto replacedCmd = "";
+	if ( auto afterEditCmd = fileContent.matchFirst( `after-edit:\s*(.+)`.regex ) ){
+	  if ( auto cmd = afterEditCmd[1] ){
+		// after edit:
+		replacedCmd = cmd.to!string.replaceFirst( `%f`.regex, fullFilePath );
+	  }
+	}else{
+	  auto userCmd = userChoice( "Command for compile/check your file %s".format(fullFilePath), [] );
+	  if ( userCmd ) replacedCmd = userCmd.replaceFirst( fullFilePath.regex, "%f" );
+	  if (replacedCmd) fullFilePath.append( "\n" ~ replacedCmd ~ "\n" );
+	}
 	
+	if (replacedCmd) spawnShell("set -x; " ~ replacedCmd ).wait;	
+
 }
 
 auto available_editors(){
@@ -128,22 +140,5 @@ string userChoice ( string prompt, string[] list)
  }
 }
 
-void addItemToListInFile(string file, string item, string[] except, bool verbose=true ){
-  exists(file) || append(file,""); // create file if need
-  auto list = listFromFile(file);
-  item = item.strip;
-  if ( except.canFind( item)){
-	return;
-  }
-  if ( !list.canFind( item )){
-	append( file, item);
-	stderr.writefln("%s was added to %s", item, file);
-  }	
-}
 
-string[] listFromFile( string file ){
- string[] rv;
- if ( !exists(file) ) return rv;
- return File(file).byLineCopy.map!strip.array;
-}
 

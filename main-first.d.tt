@@ -15,3 +15,5 @@ import
   std.array, 
   std.functional
   ;
+
+// after-edit: dmd %f

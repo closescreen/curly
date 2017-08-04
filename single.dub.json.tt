@@ -22,3 +22,5 @@ void main( string[] args )
 {
   writefln("Ok");
 }
+
+// after-edit: dmd --single %f

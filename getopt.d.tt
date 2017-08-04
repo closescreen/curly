@@ -17,3 +17,5 @@ void main( string[] args )
   if ( opts.helpWanted)  defaultGetoptPrinter( "Usage: ___ ",  opts.options );
   
 }
+
+// after-edit: dmd %f
