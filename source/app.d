@@ -1,25 +1,26 @@
 import std.stdio, std.path, std.algorithm, std.file, std.regex, std.string, std.array, std.conv, std.functional, std.range, std.process;
-import core.stdc.stdlib;
+import core.stdc.stdlib, std.exception;
 
 void main( string[] args)
 {
     // имя файла создаваемой программы
 	auto file = args.length > 1 ? args[1] : "";
 
-    // Если имя файла программы *.d не указано
+   // Если имя файла программы *.d не указано
     if ( file.empty ){
-  	  stderr.writefln( "Usage: %s <file.d>" , args[0].baseName ); 
-  	  // installing
-	  auto pathToMe = executeShell( "which " ~ args[0].baseName );
-	  if ( pathToMe.output.empty )
-		stderr.writeln("Please add me to PATH:\nexport PATH=$PATH:" , args[0].dirName );
-		exit(1);
-	}
+      //usage instruction:
+      stderr.writefln( "Usage: %s <file.d>" , args[0].baseName );
 
-	// расширение файла
-	string file_ex;
-	if ( auto m = matchFirst( file, `\.(.+)$` ))
-          file_ex = m[1];	
+      // installing PATH instructions:
+      executeShell( "which " ~ args[0].baseName ).output.empty &&
+        stderr.writefln("Please add me to PATH:\nexport PATH=$PATH:%s" , args[0].dirName );
+
+      exit(1);
+    }
+
+    // расширение файла
+    string file_ex = file.extension.enforce.ifThrown("").replaceFirst(regex(`.`),"");
+
 
     // имя программы
     auto prgname = file.baseName.replace( regex(`\..+$`), "" );
