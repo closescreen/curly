@@ -94,6 +94,7 @@ void main( string[] args)
 
 	while( true ){	
 
+	  auto lm = file.timeLastModified;
 	  auto edPid = spawnShell( editCmd );
 	  if ( edPid.wait != 0 )
 		stderr.writefln("Was error while call editor command: %s.", editor );
@@ -117,7 +118,9 @@ void main( string[] args)
 		  file.append( "\n// CURLY_EDITOR: %s".format( editor) );
 	  
 	
-	  if (templatedCmd) spawnShell("set -x; " ~ templatedCmd ).wait;	
+	  if (templatedCmd) 
+		if ( file.timeLastModified != lm )
+		  spawnShell("set -x; " ~ templatedCmd ).wait;	
 	  
 	  if (!recursively) break;
 	  writeln("Continue editing? [y]/n/Ctrl+c");
