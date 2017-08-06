@@ -9,13 +9,9 @@ void main( string[] args)
     args,
     std.getopt.config.caseSensitive,
     "r", "recursively edit", &recursively,
-//    std.getopt.config.caseInsensitive,
-//    "deb|d", "debug level 0|1|2", &deb,
-//    "day", "day in yyyy-mm-dd format",   &day,
   );
 
   if ( opts.helpWanted)  defaultGetoptPrinter( "Usage: ",  opts.options );
-
 
     // имя файла создаваемой программы
 	auto file = args.length > 1 ? args[1] : "";
@@ -48,11 +44,8 @@ void main( string[] args)
 	  editor = environment.get("EDITOR" , "").strip;
 	}
 	
-	stderr.writefln("editor: %s", editor);
 	if ( editor.empty && file.exists ){
-	  stderr.writeln("find in file");
-	  if ( auto editor_from_file = file.readText.matchFirst( `CURLY_EDITOR:\s*(.+)`.regex ) ){
-		stderr.writeln("from file:",editor_from_file);
+	  if ( auto editor_from_file = file.readText.matchFirst( `^\W*CURLY_EDITOR:\s*(.+)`.regex("m") ) ){
 		editor = editor_from_file[1]; 
 	  }
 	} 
@@ -90,7 +83,8 @@ void main( string[] args)
 		  template_file_name.readText.replaceAll( regex( r"\%prgname\%" ), prgname ) : 
 		  "";
 
-	  if (editor) prgText = prgText ~ ("\n// CURLY_EDITOR: %s".format( editor));
+	  if (editor) 
+		prgText = prgText ~ ("\n// CURLY_EDITOR: %s".format( editor));
 
 	  std.file.write( file, prgText );
 	
@@ -105,20 +99,25 @@ void main( string[] args)
 		stderr.writefln("Was error while call editor command: %s.", editor );
 	
 	  string fileContent = file.readText;
-	  string fullFilePath = executeShell( "readlink -f " ~ file ).output;
-	  auto replacedCmd = "";
-	  if ( auto afterEditCmd = fileContent.matchFirst( `after-edit:\s*(.+)`.regex ) ){
-		if ( auto cmd = afterEditCmd[1] ){
-		  // after edit:
-		  replacedCmd = cmd.to!string.replaceFirst( `%f`.regex, fullFilePath );
-		}
+	  //string fullFilePath = executeShell( "readlink -f " ~ file ).output;
+
+	  // after edit:
+	  auto templatedCmd = "";
+	  if ( auto afterEditCmd = fileContent.matchFirst( `^\W*after-edit:\s*(.+)`.regex("m") ) ){
+		  templatedCmd = afterEditCmd[1].to!string.replaceFirst( `%f`.regex, file );
 	  }else{
-		auto userCmd = userChoice( "Command for compile/check your file %s".format(fullFilePath), [] );
-		if ( userCmd ) replacedCmd = userCmd.replaceFirst( fullFilePath.regex, "%f" );
-		if (replacedCmd) fullFilePath.append( "\n" ~ replacedCmd ~ "\n" );
+		auto userCmd = userChoice( "Command for compile/check your file %s".format( file ), [] );
+		if ( userCmd ) templatedCmd = userCmd.replaceFirst( file.regex, "%f" );
+		file.append( "\n" ~ "// after-edit: " ~ templatedCmd ~ "\n" );
 	  }
+	  
+	  //editor:
+	  if ( !file.readText.matchFirst( `^\W*CURLY_EDITOR:\s*(.+)`.regex("m") ) )
+		if (editor)  
+		  file.append( "\n// CURLY_EDITOR: %s".format( editor) );
+	  
 	
-	  if (replacedCmd) spawnShell("set -x; " ~ replacedCmd ).wait;	
+	  if (templatedCmd) spawnShell("set -x; " ~ templatedCmd ).wait;	
 	  
 	  if (!recursively) break;
 	  writeln("Continue editing? [y]/n/Ctrl+c");
@@ -161,8 +160,6 @@ string userChoice ( string prompt, string[] list)
 }
 
 
-  
-  
-  
-  
-  
+// after-edit: dub --root=..
+
+// CURLY_EDITOR: mcedit
