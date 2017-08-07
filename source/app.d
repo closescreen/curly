@@ -13,15 +13,13 @@ void main( string[] args)
     "b", "background compile", &background,
   );
 
-  if ( opts.helpWanted)  defaultGetoptPrinter( "Usage: ",  opts.options );
+  if ( opts.helpWanted)  defaultGetoptPrinter( "Usage:  %s <file.d> ".format(args[0].baseName),  opts.options );
 
     // имя файла создаваемой программы
 	auto file = args.length > 1 ? args[1] : "";
 
    // Если имя файла программы *.d не указано
     if ( file.empty ){
-      //usage instruction:
-      stderr.writefln( "Usage: %s <file.d>" , args[0].baseName );
 
       // installing PATH instructions:
       executeShell( "which " ~ args[0].baseName ).output.empty &&
@@ -92,27 +90,27 @@ void main( string[] args)
 	
 	} // - end of if !file.exists
 
-    Pid editorPid;	
+    Pid editorPid;
 	while( true ){	
 	  auto editCmd = "%s %s".format( editor, file);
       auto lm = file.timeLastModified;
-      editorPid = spawnShell( "set -x; " ~ editCmd );
+      
 
       if ( background ){
-        if ( !editorPid.tryWait.terminated )
-            waitModify( file, lm, 2.seconds );
-        else{
-          auto ans2 = "Continue editing? [y]/n/Ctrl+c ( compiling in background mode )".userAns;
-	      ans2 != "" && ans2!="y" && ans2!="Y" && editorPid.wait() && exit(0); 
-        }
+    	if ( editorPid is null ) 
+    	  editorPid = spawnShell( "set -x; " ~ editCmd );
         
-      } // end if background
-      
-      if (!background)
-	    editorPid.wait;
-	  
+        auto state = waitModifyOrTerminated( file, lm, editorPid, 2.seconds );
+		if ( state == State.Terminated ){
+			auto ans2 = "(%s was closed)\nEdit %s? [y]/n/Ctrl+c ( editor was terminated )".format( editor, file).userAns;
+			ans2 != "" && ans2!="y" && ans2!="Y" && exit(0);
+			editorPid = spawnShell( "set -x; " ~ editCmd );
+		}
+		
+		if ( state == State.Modifyed ){
+		  stderr.writefln("%s was modified.", file);
+		}
 
-	  if ( background ){
     	// read/add after edit:
         string after_edit_cmd = file.get_after_edit_note;
         if (after_edit_cmd.empty){ 
@@ -128,15 +126,19 @@ void main( string[] args)
 	    if ( !after_edit_cmd.empty ) 
 		  if ( file.timeLastModified != lm )
 		    spawnShell("set -x; " ~ after_edit_cmd ).wait;	
-	    
-	  }
-	  
+
+
+      } // end if background
       
+
       if ( !background ){
-    	// read/add after edit:
+      
+        editorPid = spawnShell( "set -x; " ~ editCmd );
+		editorPid.wait;
 
         string after_edit_cmd = file.get_after_edit_note;
-        
+
+    	// read/add after edit:
         if ( after_edit_cmd.empty ){ 
             after_edit_cmd = userChoice( "Command for compile/check your file %s".format( file ), [] );
             if ( !after_edit_cmd.empty )
@@ -158,18 +160,24 @@ void main( string[] args)
 	  }
 	  
 	}  // end of while
-}
+} // end of main
 
-void waitModify( string file, SysTime oldtime, Duration dur ){
+enum State{ Modifyed, Terminated }
+
+State waitModifyOrTerminated( string file, SysTime oldtime, Pid pid, Duration dur ){
  while ( true ){
   Thread.sleep( dur );
-  if ( file.timeLastModified != oldtime ) 
-    break;
+  if ( file.timeLastModified != oldtime ){
+	return State.Modifyed;
+  }
+  if ( pid.tryWait.terminated ){
+	return State.Terminated;
+  }
  }
 }
 
 string userAns( string quest){
- writeln("Continue editing? [y]/n/Ctrl+c");
+ writeln( quest );
  return readln.strip;
 }
 
