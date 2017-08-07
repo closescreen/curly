@@ -102,7 +102,7 @@ void main( string[] args)
         
         auto state = waitModifyOrTerminated( file, lm, editorPid, 2.seconds );
 		if ( state == State.Terminated ){
-			auto ans2 = "(%s was closed)\nEdit %s? [y]/n/Ctrl+c ( editor was terminated )".format( editor, file).userAns;
+			auto ans2 = "(%s was closed)\nEdit %s? [y]/n/Ctrl+c".format( editor, file).userAns;
 			ans2 != "" && ans2!="y" && ans2!="Y" && exit(0);
 			editorPid = spawnShell( "set -x; " ~ editCmd );
 		}
