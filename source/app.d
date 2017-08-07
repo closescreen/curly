@@ -1,14 +1,16 @@
 import std.stdio, std.path, std.algorithm, std.file, std.regex, std.string, std.array, std.conv, std.functional, std.range, std.process;
-import core.stdc.stdlib, std.exception, std.getopt;
+import core.stdc.stdlib, std.exception, std.getopt, std.datetime, core.thread;
 
 void main( string[] args)
 {
 
-  bool recursively = false; 
+  bool norecursively = false; 
+  bool background = false;
   auto opts = getopt(
     args,
     std.getopt.config.caseSensitive,
-    "r", "recursively edit", &recursively,
+    "nr", "disable recursively edit", &norecursively,
+    "b", "background compile", &background,
   );
 
   if ( opts.helpWanted)  defaultGetoptPrinter( "Usage: ",  opts.options );
@@ -90,43 +92,109 @@ void main( string[] args)
 	
 	} // - end of if !file.exists
 
-	auto editCmd = "%s %s".format( editor, file);
-
+    Pid editorPid;	
 	while( true ){	
+	  auto editCmd = "%s %s".format( editor, file);
+      auto lm = file.timeLastModified;
+      editorPid = spawnShell( "set -x; " ~ editCmd );
 
-	  auto lm = file.timeLastModified;
-	  auto edPid = spawnShell( editCmd );
-	  if ( edPid.wait != 0 )
-		stderr.writefln("Was error while call editor command: %s.", editor );
-	
-	  string fileContent = file.readText;
-	  //string fullFilePath = executeShell( "readlink -f " ~ file ).output;
+      if ( background ){
+        if ( !editorPid.tryWait.terminated )
+            waitModify( file, lm, 2.seconds );
+        else{
+          auto ans2 = "Continue editing? [y]/n/Ctrl+c ( compiling in background mode )".userAns;
+	      ans2 != "" && ans2!="y" && ans2!="Y" && editorPid.wait() && exit(0); 
+        }
+        
+      } // end if background
+      
+      if (!background)
+	    editorPid.wait;
+	  
 
-	  // after edit:
-	  auto templatedCmd = "";
-	  if ( auto afterEditCmd = fileContent.matchFirst( `^\W*after-edit:\s*(.+)`.regex("m") ) ){
-		  templatedCmd = afterEditCmd[1].to!string.replaceFirst( `%f`.regex, file );
-	  }else{
-		auto userCmd = userChoice( "Command for compile/check your file %s".format( file ), [] );
-		if ( userCmd ) templatedCmd = userCmd.replaceFirst( file.regex, "%f" );
-		file.append( "\n" ~ "// after-edit: " ~ templatedCmd ~ "\n" );
+	  if ( background ){
+    	// read/add after edit:
+        string after_edit_cmd = file.get_after_edit_note;
+        if (after_edit_cmd.empty){ 
+          background = false;
+          continue;
+        }
+        
+        // check-write editor note:
+	    if (file.get_editor_note.empty) 
+	      file.add_editor_note( editor );
+	  
+	    // compile:
+	    if ( !after_edit_cmd.empty ) 
+		  if ( file.timeLastModified != lm )
+		    spawnShell("set -x; " ~ after_edit_cmd ).wait;	
+	    
 	  }
 	  
-	  //editor:
-	  if ( !file.readText.matchFirst( `^\W*CURLY_EDITOR:\s*(.+)`.regex("m") ) )
-		if (editor)  
-		  file.append( "\n// CURLY_EDITOR: %s".format( editor) );
+      
+      if ( !background ){
+    	// read/add after edit:
+
+        string after_edit_cmd = file.get_after_edit_note;
+        
+        if ( after_edit_cmd.empty ){ 
+            after_edit_cmd = userChoice( "Command for compile/check your file %s".format( file ), [] );
+            if ( !after_edit_cmd.empty )
+              file.add_after_edit_note( after_edit_cmd );
+        }
+
+        // check-write editor note:
+	    if (file.get_editor_note.empty) 
+	      file.add_editor_note( editor );
 	  
-	
-	  if (templatedCmd) 
-		if ( file.timeLastModified != lm )
-		  spawnShell("set -x; " ~ templatedCmd ).wait;	
+	    // compile:
+	    if ( !after_edit_cmd.empty ) 
+		  if ( file.timeLastModified != lm )
+		    spawnShell("set -x; " ~ after_edit_cmd ).wait;	
 	  
-	  if (!recursively) break;
-	  writeln("Continue editing? [y]/n/Ctrl+c");
-	  auto ans2 = readln.strip;
-	  ans2 != "" && ans2!="y" && ans2!="Y" && exit(0); 
-	}
+	    if (norecursively) break;
+	      auto ans2 = "Continue editing? [y]/n/Ctrl+c".userAns;
+	      ans2 != "" && ans2!="y" && ans2!="Y" && exit(0); 
+	  }
+	  
+	}  // end of while
+}
+
+void waitModify( string file, SysTime oldtime, Duration dur ){
+ while ( true ){
+  Thread.sleep( dur );
+  if ( file.timeLastModified != oldtime ) 
+    break;
+ }
+}
+
+string userAns( string quest){
+ writeln("Continue editing? [y]/n/Ctrl+c");
+ return readln.strip;
+}
+
+auto get_editor_note( string file ){
+  if ( auto found_editor = file.readText.matchFirst( `^\W*CURLY_EDITOR:\s*(.+)`.regex("m") ))
+    return found_editor[1].to!string;
+  else
+    return "";
+}
+
+void add_editor_note( string file, string editor){
+  if (editor)
+    file.append( "\n// CURLY_EDITOR: %s".format( editor) );
+}
+
+string get_after_edit_note( string file ){
+  if ( auto found_cmd = file.readText.matchFirst( `^\W*after-edit:\s*(.+)`.regex("m") ) )
+    return found_cmd[1].to!string.replaceFirst( `%f`.regex, file );
+  else
+    return "";
+}
+
+void add_after_edit_note( string file, string cmd){
+  if ( cmd )
+    file.append( "\n" ~ "// after-edit: " ~ cmd.replaceFirst( file.regex, "%f") ~ "\n" );
 }
 
 auto available_editors(){
@@ -164,5 +232,5 @@ string userChoice ( string prompt, string[] list)
 
 
 // after-edit: dub --root=..
-
 // CURLY_EDITOR: mcedit
+
